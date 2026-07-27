@@ -1,0 +1,34 @@
+# Raw and derived data — never commit actual dataset files to GitHub
+data/raw/**/*
+!data/raw/**/.gitkeep
+data/derived/**/*
+!data/derived/**/.gitkeep
+data/cache/**/*
+!data/cache/**/.gitkeep
+
+# Generated outputs
+outputs/checkpoints/**/*
+!outputs/checkpoints/**/.gitkeep
+outputs/predictions/**/*
+!outputs/predictions/**/.gitkeep
+outputs/tensorboard/**/*
+!outputs/tensorboard/**/.gitkeep
+outputs/xai/**/*
+!outputs/xai/**/.gitkeep
+
+# Model weights
+*.pt
+*.pth
+*.ckpt
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

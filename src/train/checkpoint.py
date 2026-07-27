@@ -1,0 +1,9 @@
+"""
+Save/load model + optimizer + epoch state.
+
+STATUS: placeholder — not yet implemented.
+This file will be filled in step by step as we build the pipeline together.
+"""
+
+# TODO: save_checkpoint()
+# TODO: load_checkpoint()
