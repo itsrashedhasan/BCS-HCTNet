@@ -46,7 +46,7 @@ if IS_KAGGLE:
     # Check the right-hand "Data" panel in your Kaggle notebook for the
     # exact names once you've added each dataset as an input.
     KAGGLE_DATASET_DIRS = {
-        "isic2018": "/kaggle/input/ISIC_2018",
+        "isic2018": "/kaggle/input/ISIC_2018/ISIC_2018",
         "ph2": "/kaggle/input/PH2",
         "imaplusplus": "/kaggle/input/imaplusplus",
         "isic2017": "/kaggle/input/ISIC_2017",
