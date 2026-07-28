@@ -377,14 +377,18 @@ def inspect_isic_sample(
     if not (
         0.0
         < foreground_ratio
-        < 1.0
+        <= 1.0
     ):
         raise RuntimeError(
-            "ISIC 2018 mask must contain both "
-            "foreground and background: "
+            "ISIC 2018 mask must contain lesion "
+            "foreground: "
             f"image_id={image_id}, "
             f"ratio={foreground_ratio}."
         )
+
+    mask_is_full_foreground = (
+        foreground_ratio == 1.0
+    )
 
     return image_id, {
         "image_id": image_id,
@@ -399,6 +403,9 @@ def inspect_isic_sample(
         "mask_height": mask_height,
         "mask_foreground_ratio": (
             foreground_ratio
+        ),
+        "mask_is_full_foreground": (
+            mask_is_full_foreground
         ),
         "decoded_pixel_sha256": str(
             image_result[
@@ -1076,6 +1083,17 @@ def main() -> int:
         max_workers,
     )
 
+    full_foreground_mask_ids = sorted(
+        image_id
+        for image_id, record
+        in inspection.items()
+        if bool(
+            record[
+                "mask_is_full_foreground"
+            ]
+        )
+    )
+
     training_ratios = sorted(
         float(
             record[
@@ -1207,6 +1225,18 @@ def main() -> int:
         row[
             "mask_foreground_ratio"
         ] = f"{ratio:.10f}"
+
+        row[
+            "mask_is_full_foreground"
+        ] = (
+            "true"
+            if bool(
+                record[
+                    "mask_is_full_foreground"
+                ]
+            )
+            else "false"
+        )
 
         row[
             "lesion_size_group"
@@ -1476,6 +1506,7 @@ def main() -> int:
             "image_path",
             "mask_path",
             "mask_foreground_ratio",
+            "mask_is_full_foreground",
             "lesion_size_group",
             "width",
             "height",
@@ -1692,6 +1723,25 @@ def main() -> int:
         ),
         "lesion_size_thresholds_training_only": (
             True
+        ),
+        "full_foreground_masks_explicitly_flagged": (
+            all(
+                bool(
+                    record[
+                        "mask_is_full_foreground"
+                    ]
+                )
+                == (
+                    float(
+                        record[
+                            "mask_foreground_ratio"
+                        ]
+                    )
+                    == 1.0
+                )
+                for record
+                in inspection.values()
+            )
         ),
         "all_external_counts_correct": (
             external_count_checks
@@ -1917,6 +1967,12 @@ def main() -> int:
             "patient_id_available": (
                 patient_id_available
             ),
+            "full_foreground_mask_count": len(
+                full_foreground_mask_ids
+            ),
+            "full_foreground_mask_ids": (
+                full_foreground_mask_ids
+            ),
         },
         "fixed_evaluation_cohorts": {
             "ph2_strict_external": {
@@ -2062,6 +2118,11 @@ def main() -> int:
     print(
         "Patient identifiers available   : "
         f"{patient_id_available}"
+    )
+
+    print(
+        "Full-foreground masks flagged   : "
+        f"{len(full_foreground_mask_ids)}"
     )
 
     print(
