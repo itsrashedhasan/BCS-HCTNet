@@ -1,13 +1,28 @@
-"""
-Step 02 — Build manifest CSVs for all 4 datasets.
+"""Step 02: Build manifests for all four datasets.
 
-STATUS: placeholder — not yet implemented.
-Run with:  python scripts/02_build_all_manifests.py
-(On Kaggle, run this same code directly in a notebook cell instead.)
+Run from the repository root:
+
+    python3 scripts/02_build_all_manifests.py
+
+This launcher calls the validated manifest builder in
+src/data/build_manifest.py.
 """
 
-# TODO: implement this step
+from __future__ import annotations
+
+import os
+import sys
+
+
+REPOSITORY_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
+
+sys.path.insert(0, REPOSITORY_ROOT)
+
+
+from src.data.build_manifest import main
 
 
 if __name__ == "__main__":
-    print("Step not implemented yet: 02_build_all_manifests.py")
+    raise SystemExit(main())
