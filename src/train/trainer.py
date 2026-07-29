@@ -701,7 +701,15 @@ def train_one_epoch(
                     max_norm=(
                         resolved_gradient_clip
                     ),
-                    error_if_nonfinite=True,
+                    # During CUDA AMP, GradScaler may intentionally
+                    # encounter non-finite scaled gradients while it
+                    # calibrates the loss scale. ``unscale_`` records
+                    # that state, and ``step`` safely skips the optimizer
+                    # update before ``update`` reduces the scale. Raising
+                    # here would prevent that standard recovery path.
+                    error_if_nonfinite=(
+                        not effective_amp
+                    ),
                 )
             )
 
@@ -714,21 +722,22 @@ def train_one_epoch(
                 .item()
             )
 
-            if not math.isfinite(
+            if math.isfinite(
                 gradient_norm
             ):
+                maximum_gradient_norm = (
+                    gradient_norm
+                    if maximum_gradient_norm is None
+                    else max(
+                        maximum_gradient_norm,
+                        gradient_norm,
+                    )
+                )
+
+            elif not effective_amp:
                 raise RuntimeError(
                     "Gradient norm is non-finite."
                 )
-
-            maximum_gradient_norm = (
-                gradient_norm
-                if maximum_gradient_norm is None
-                else max(
-                    maximum_gradient_norm,
-                    gradient_norm,
-                )
-            )
 
         scaler_step(
             optimizer
