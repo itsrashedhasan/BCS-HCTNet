@@ -29,3 +29,4 @@ seaborn>=0.12.0
 # Complexity analysis (params/FLOPs)
 thop>=0.1.1
 scipy
+pytest
