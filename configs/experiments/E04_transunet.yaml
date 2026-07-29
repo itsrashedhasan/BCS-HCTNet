@@ -1,0 +1,349 @@
+schema_version: 1
+
+experiment:
+  id: E04
+  name: e04_transunet
+  purpose: controlled_mask_only_transunet_baseline_training
+  description: >-
+    Primary controlled TransUNet-style CNN-Transformer baseline for binary
+    ISIC 2018 lesion segmentation. The experiment uses the approved fixed
+    splits, 352 x 352 preprocessing, moderate training-only augmentation,
+    BCE-Dice mask loss, identical optimizer and scheduler settings, and
+    validation-only model selection used by the other reproduced baselines.
+    The model is initialized from scratch and uses the project-defined
+    compute-feasible residual CNN encoder, Transformer bottleneck, and
+    U-Net-style decoder without boundary conditioning or auxiliary targets.
+  primary_seed: 42
+  additional_reproducibility_seeds:
+    - 123
+    - 2026
+  deterministic: true
+
+artifacts:
+  step04:
+    root: /kaggle/input/datasets/asrafulislam7/bcs-hctnet-step04-split-artifacts
+
+  step05a:
+    root: /kaggle/input/datasets/asrafulislam7/bcs-hctnet-step05a-target-artifacts
+
+  step05c:
+    root: /kaggle/input/datasets/asrafulislam7/bcs-hctnet-step05c-training-readiness-artifacts
+
+  require_training_readiness: true
+  expected_training_status: training_unblocked
+
+manifests:
+  train:
+    artifact: step04
+    relative_path: data/splits/isic2018_train.csv
+    expected_rows: 2594
+
+  validation:
+    artifact: step04
+    relative_path: data/splits/isic2018_val.csv
+    expected_rows: 100
+
+  internal_test_primary:
+    artifact: step05c
+    relative_path: data/manifests/isic2018_internal_test_primary_1000.csv
+    expected_rows: 1000
+
+  internal_test_excluding_full_foreground:
+    artifact: step05c
+    relative_path: >-
+      data/manifests/isic2018_internal_test_sensitivity_excluding_full_foreground_999.csv
+    expected_rows: 999
+
+  internal_test_excluding_foreground_ge_0_98:
+    artifact: step05c
+    relative_path: >-
+      data/manifests/isic2018_internal_test_sensitivity_excluding_foreground_ge_0_98_992.csv
+    expected_rows: 992
+
+  derived_targets:
+    artifact: step05a
+    relative_path: data/manifests/isic2018_derived_targets_352.csv
+    expected_rows: 3694
+
+data:
+  dataset_name: isic2018_task1
+  task: binary_skin_lesion_segmentation
+
+  image_size:
+    height: 352
+    width: 352
+
+  image_channels: 3
+  output_classes: 1
+
+  image_mode: RGB
+  mask_mode: binary
+
+  preprocessing:
+    image_resize_interpolation: bilinear
+    binary_target_resize_interpolation: nearest
+    sdm_resize_policy: no_resize_precomputed_at_final_resolution
+
+    normalization:
+      type: imagenet_mean_std
+      input_scale: "0_1"
+      mean:
+        - 0.485
+        - 0.456
+        - 0.406
+      std:
+        - 0.229
+        - 0.224
+        - 0.225
+
+  targets:
+    mask:
+      enabled: true
+      format: png_uint8_0_255
+      tensor_range:
+        - 0.0
+        - 1.0
+
+    contour:
+      enabled: true
+      format: png_uint8_0_255
+      contour_width_pixels: 2
+      tensor_range:
+        - 0.0
+        - 1.0
+
+    boundary_band:
+      enabled: true
+      format: png_uint8_0_255
+      radius_pixels: 3
+      tensor_range:
+        - 0.0
+        - 1.0
+
+    signed_distance_map:
+      enabled: true
+      format: numpy_float32
+      clip_distance_pixels: 20.0
+      sign_convention: positive_inside_negative_outside
+      tensor_range:
+        - -1.0
+        - 1.0
+
+  loader:
+    train_batch_size: 8
+    evaluation_batch_size: 8
+    num_workers: 4
+    pin_memory: true
+    persistent_workers: true
+    prefetch_factor: 2
+    drop_last_train: true
+    drop_last_evaluation: false
+    shuffle_train: true
+    shuffle_evaluation: false
+
+augmentation:
+  enabled_for_train: true
+  enabled_for_validation: false
+  enabled_for_internal_test: false
+  enabled_for_external_datasets: false
+
+  profile_name: moderate_dermoscopy_v1
+
+  geometric:
+    horizontal_flip:
+      enabled: true
+      probability: 0.5
+
+    vertical_flip:
+      enabled: true
+      probability: 0.5
+
+    affine:
+      enabled: true
+      probability: 0.5
+      rotation_degrees:
+        minimum: -20.0
+        maximum: 20.0
+      scale:
+        minimum: 0.90
+        maximum: 1.10
+      translation_fraction:
+        minimum: -0.05
+        maximum: 0.05
+
+  photometric:
+    brightness_contrast:
+      enabled: true
+      probability: 0.4
+      brightness_limit: 0.15
+      contrast_limit: 0.15
+
+    hue_saturation:
+      enabled: true
+      probability: 0.2
+      hue_shift_limit: 0.02
+      saturation_shift_limit: 0.10
+
+    gaussian_noise:
+      enabled: true
+      probability: 0.15
+      standard_deviation:
+        minimum: 0.0
+        maximum: 0.02
+
+    gaussian_blur:
+      enabled: true
+      probability: 0.10
+      kernel_sizes:
+        - 3
+        - 5
+
+  regularization:
+    coarse_dropout:
+      enabled: true
+      probability: 0.10
+      holes:
+        minimum: 1
+        maximum: 4
+      hole_size_fraction:
+        minimum: 0.03
+        maximum: 0.10
+
+  prohibited:
+    random_augmentation_on_validation: true
+    random_augmentation_on_test: true
+    hidden_clahe_default: true
+    hidden_hair_removal_default: true
+    aggressive_crop: true
+    elastic_deformation: true
+
+model:
+  name: transunet
+
+  parameters:
+    input_channels: 3
+    output_channels: 1
+    base_channels: 32
+    encoder_blocks:
+      - 1
+      - 1
+      - 2
+      - 2
+    transformer_dimension: 512
+    transformer_layers: 6
+    transformer_heads: 8
+    transformer_mlp_dimension: 2048
+    transformer_dropout: 0.1
+    attention_dropout: 0.0
+    bottleneck_dropout: 0.0
+    bilinear_decoder: true
+
+training:
+  maximum_epochs: 200
+  early_stopping_patience: 30
+
+  optimizer:
+    name: adamw
+    learning_rate: 0.0001
+    weight_decay: 0.0001
+
+  scheduler:
+    name: cosine_annealing
+    minimum_learning_rate: 0.0
+    interval: epoch
+
+  automatic_mixed_precision: true
+  gradient_accumulation_steps: 1
+  gradient_clip_norm: 1.0
+
+  validation_every_epochs: 1
+
+  checkpoint:
+    monitor: validation_dice
+    mode: maximum
+    save_best_only: true
+    save_last: true
+
+  resume:
+    enabled: true
+    strict_configuration_match: true
+
+loss:
+  name: bce_dice_loss
+
+  weights:
+    bce: 1.0
+    dice: 1.0
+
+  pos_weight: null
+  dice_smooth: 1.0
+  dice_epsilon: 1.0e-7
+  reduction: mean
+  return_components: true
+
+inference:
+  probability_threshold: 0.5
+  save_binary_predictions: true
+  save_probability_maps: true
+  save_contour_predictions: false
+  save_sdm_predictions: false
+
+evaluation:
+  model_selection_partition: official_isic2018_validation_only
+
+  primary_internal_test:
+    name: official_isic2018_internal_test
+    expected_images: 1000
+
+  required_sensitivity_analyses:
+    - name: excluding_exact_full_foreground
+      expected_images: 999
+
+    - name: excluding_foreground_ratio_ge_0_98
+      expected_images: 992
+
+  prohibit_internal_test_tuning: true
+  prohibit_external_dataset_tuning: true
+
+reproducibility:
+  seed_python: 42
+  seed_numpy: 42
+  seed_torch: 42
+  seed_cuda: 42
+
+  deterministic_algorithms: true
+  cudnn_deterministic: true
+  cudnn_benchmark: false
+
+  record:
+    configuration_copy: true
+    git_commit: true
+    python_environment: true
+    cuda_environment: true
+    dataset_artifact_paths: true
+    input_manifest_checksums: true
+
+smoke_test:
+  enabled: true
+  train_samples: 8
+  validation_samples: 4
+  batch_size: 2
+  epochs: 1
+  require_loss_finite: true
+  require_backward_pass: true
+  require_all_output_shapes: true
+  require_nonzero_gradients: true
+  save_debug_visualizations: true
+
+outputs:
+  root: /kaggle/working/outputs/experiments/E04_transunet
+
+  directories:
+    checkpoints: checkpoints
+    logs: logs
+    histories: histories
+    predictions: predictions
+    probability_maps: probability_maps
+    visualizations: visualizations
+    configurations: configurations
+    environment: environment
