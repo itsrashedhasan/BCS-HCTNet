@@ -47,6 +47,16 @@ DEFAULT_TARGET_HEIGHT = 352
 DEFAULT_TARGET_WIDTH = 352
 DEFAULT_SDM_CLIP_DISTANCE_PIXELS = 20.0
 
+# Step05A packages the generated target tree below this directory.
+# The manifest's target_*_relative_path values (for example,
+# mask/train/ISIC_0000000.png) are relative to this root, not to the
+# top-level Kaggle Dataset artifact directory.
+STEP05A_PACKAGED_TARGET_ROOT = (
+    Path("data")
+    / "targets"
+    / "isic2018_352"
+)
+
 
 @dataclass(frozen=True)
 class DatasetRecord:
@@ -543,13 +553,60 @@ def _resolve_source_image(
     )
 
 
+def _target_resolution_roots(
+    target_root: Path,
+) -> tuple[Path, ...]:
+    """Return approved roots for Step05A target-relative paths.
+
+    The persistent Kaggle Dataset contains the copied generation tree at
+    ``data/targets/isic2018_352``. Earlier synthetic tests and local layouts
+    may place target-relative paths directly below the supplied artifact
+    root, so that root remains an explicit compatibility fallback.
+    """
+
+    resolved_root = (
+        target_root
+        .expanduser()
+        .resolve()
+    )
+
+    candidates = [
+        (
+            resolved_root
+            / STEP05A_PACKAGED_TARGET_ROOT
+        ).resolve(),
+        resolved_root,
+    ]
+
+    unique_roots: list[Path] = []
+    seen: set[str] = set()
+
+    for candidate in candidates:
+        key = str(
+            candidate
+        )
+
+        if key not in seen:
+            seen.add(
+                key
+            )
+
+            unique_roots.append(
+                candidate
+            )
+
+    return tuple(
+        unique_roots
+    )
+
+
 def _resolve_target(
     target_row: Mapping[str, str],
     target_root: Path,
     image_id: str,
     target_name: str,
 ) -> Path:
-    """Resolve one Step 05A target file."""
+    """Resolve one Step05A target file from its packaged artifact."""
 
     column_prefixes = {
         "mask": "target_mask",
@@ -585,9 +642,11 @@ def _resolve_target(
                 f"{prefix}_relative_path"
             )
         ],
-        roots=[
-            target_root
-        ],
+        roots=(
+            _target_resolution_roots(
+                target_root
+            )
+        ),
     )
 
 
@@ -1437,28 +1496,33 @@ def run_dataset_self_test() -> dict[str, Any]:
             / "images"
         )
 
-        mask_directory = (
+        packaged_target_root = (
             target_root
-            / "targets"
-            / "masks"
+            / STEP05A_PACKAGED_TARGET_ROOT
+        )
+
+        mask_directory = (
+            packaged_target_root
+            / "mask"
+            / "train"
         )
 
         contour_directory = (
-            target_root
-            / "targets"
-            / "contours"
+            packaged_target_root
+            / "contour"
+            / "train"
         )
 
         boundary_directory = (
-            target_root
-            / "targets"
-            / "boundary_bands"
+            packaged_target_root
+            / "boundary_band"
+            / "train"
         )
 
         sdm_directory = (
-            target_root
-            / "targets"
+            packaged_target_root
             / "sdm"
+            / "train"
         )
 
         for path in [
@@ -1678,45 +1742,57 @@ def run_dataset_self_test() -> dict[str, Any]:
                     ),
                     "target_mask_path": str(
                         stale_root
+                        / "data"
                         / "targets"
-                        / "masks"
+                        / "isic2018_352"
+                        / "mask"
+                        / "train"
                         / mask_path.name
                     ),
                     "target_mask_relative_path": (
-                        "targets/masks/"
+                        "mask/train/"
                         f"{mask_path.name}"
                     ),
                     "target_contour_path": str(
                         stale_root
+                        / "data"
                         / "targets"
-                        / "contours"
+                        / "isic2018_352"
+                        / "contour"
+                        / "train"
                         / contour_path.name
                     ),
                     "target_contour_relative_path": (
-                        "targets/contours/"
+                        "contour/train/"
                         f"{contour_path.name}"
                     ),
                     "target_boundary_band_path": str(
                         stale_root
+                        / "data"
                         / "targets"
-                        / "boundary_bands"
+                        / "isic2018_352"
+                        / "boundary_band"
+                        / "train"
                         / boundary_path.name
                     ),
                     (
                         "target_boundary_band_"
                         "relative_path"
                     ): (
-                        "targets/boundary_bands/"
+                        "boundary_band/train/"
                         f"{boundary_path.name}"
                     ),
                     "target_sdm_path": str(
                         stale_root
+                        / "data"
                         / "targets"
+                        / "isic2018_352"
                         / "sdm"
+                        / "train"
                         / sdm_path.name
                     ),
                     "target_sdm_relative_path": (
-                        "targets/sdm/"
+                        "sdm/train/"
                         f"{sdm_path.name}"
                     ),
                     "mask_foreground_ratio": (
@@ -1832,15 +1908,42 @@ def run_dataset_self_test() -> dict[str, Any]:
                     / "SELF_TEST_000.jpg"
                 ).resolve()
             ),
-            "relative_target_path_resolved": (
+            "packaged_target_paths_resolved": (
                 dataset.record(
                     0
                 ).mask_path
                 == (
-                    target_root
-                    / "targets"
-                    / "masks"
+                    packaged_target_root
+                    / "mask"
+                    / "train"
                     / "SELF_TEST_000.png"
+                ).resolve()
+                and dataset.record(
+                    0
+                ).contour_path
+                == (
+                    packaged_target_root
+                    / "contour"
+                    / "train"
+                    / "SELF_TEST_000.png"
+                ).resolve()
+                and dataset.record(
+                    0
+                ).boundary_band_path
+                == (
+                    packaged_target_root
+                    / "boundary_band"
+                    / "train"
+                    / "SELF_TEST_000.png"
+                ).resolve()
+                and dataset.record(
+                    0
+                ).sdm_path
+                == (
+                    packaged_target_root
+                    / "sdm"
+                    / "train"
+                    / "SELF_TEST_000.npy"
                 ).resolve()
             ),
             "image_shape": (
