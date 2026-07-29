@@ -39,7 +39,7 @@ misspelled parameter names from changing experimental conditions unnoticed.
 from __future__ import annotations
 
 import gc
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import torch
@@ -155,6 +155,20 @@ MODEL_ALLOWED_PARAMETERS = {
         "dropout_probability",
         "attention_dropout",
         "drop_path_rate",
+    },
+}
+
+
+MODEL_SEQUENCE_PARAMETERS = {
+    "deeplabv3plus": {
+        "atrous_rates": 3,
+    },
+    "transunet": {
+        "encoder_blocks": 4,
+    },
+    "swin_unet": {
+        "depths": 4,
+        "number_of_heads": 4,
     },
 }
 
@@ -564,6 +578,58 @@ def _normalize_parameter_names(
             f"{sorted(allowed_parameters)}."
         )
 
+    sequence_parameters = (
+        MODEL_SEQUENCE_PARAMETERS.get(
+            model_name,
+            {},
+        )
+    )
+
+    for parameter_name, expected_length in (
+        sequence_parameters.items()
+    ):
+        if parameter_name not in normalized:
+            continue
+
+        raw_value = normalized[
+            parameter_name
+        ]
+
+        if (
+            isinstance(
+                raw_value,
+                (
+                    str,
+                    bytes,
+                ),
+            )
+            or not isinstance(
+                raw_value,
+                Sequence,
+            )
+        ):
+            raise TypeError(
+                f"{model_name}.{parameter_name} "
+                "must be a sequence."
+            )
+
+        resolved_value = tuple(
+            raw_value
+        )
+
+        if len(
+            resolved_value
+        ) != expected_length:
+            raise ValueError(
+                f"{model_name}.{parameter_name} "
+                "must contain exactly "
+                f"{expected_length} values."
+            )
+
+        normalized[
+            parameter_name
+        ] = resolved_value
+
     return normalized
 
 
@@ -942,11 +1008,11 @@ def run_baseline_model_factory_self_test() -> dict[str, Any]:
                     "aspp_channels": 32,
                     "decoder_channels": 32,
                     "low_level_projection_channels": 12,
-                    "atrous_rates": (
+                    "atrous_rates": [
                         3,
                         6,
                         9,
-                    ),
+                    ],
                     "dropout": 0.0,
                 },
                 input_shape=input_shape,
@@ -957,12 +1023,12 @@ def run_baseline_model_factory_self_test() -> dict[str, Any]:
                 name="TransUNet",
                 configuration={
                     "base_channels": 4,
-                    "encoder_blocks": (
+                    "encoder_blocks": [
                         1,
                         1,
                         1,
                         1,
-                    ),
+                    ],
                     "transformer_dim": 32,
                     "transformer_layers": 1,
                     "transformer_heads": 4,
@@ -980,18 +1046,18 @@ def run_baseline_model_factory_self_test() -> dict[str, Any]:
                 configuration={
                     "patch_size": 4,
                     "embed_dim": 12,
-                    "depths": (
+                    "depths": [
                         1,
                         1,
                         1,
                         1,
-                    ),
-                    "heads": (
+                    ],
+                    "heads": [
                         3,
                         3,
                         6,
                         12,
-                    ),
+                    ],
                     "window_size": 4,
                     "mlp_ratio": 2.0,
                     "dropout": 0.0,
@@ -1078,6 +1144,148 @@ def run_baseline_model_factory_self_test() -> dict[str, Any]:
 
     except ValueError:
         duplicate_alias_rejected = True
+
+    yaml_sequence_configuration_supported = False
+
+    try:
+        deeplab_model = build_baseline_model(
+            configuration={
+                "model": {
+                    "name": "deeplabv3plus",
+                    "parameters": {
+                        "backbone_name": "resnet50",
+                        "backbone_pretrained": False,
+                        "aspp_channels": 16,
+                        "decoder_channels": 16,
+                        "low_level_projection_channels": 8,
+                        "atrous_rates": [
+                            3,
+                            6,
+                            9,
+                        ],
+                        "dropout_probability": 0.0,
+                    },
+                }
+            }
+        )
+
+        transunet_model = build_baseline_model(
+            configuration={
+                "model": {
+                    "name": "transunet",
+                    "parameters": {
+                        "base_channels": 4,
+                        "encoder_blocks": [
+                            1,
+                            1,
+                            1,
+                            1,
+                        ],
+                        "transformer_dimension": 32,
+                        "transformer_layers": 1,
+                        "transformer_heads": 4,
+                        "transformer_mlp_dimension": 64,
+                        "transformer_dropout": 0.0,
+                        "attention_dropout": 0.0,
+                        "bottleneck_dropout": 0.0,
+                    },
+                }
+            }
+        )
+
+        swin_model = build_baseline_model(
+            configuration={
+                "model": {
+                    "name": "swin_unet",
+                    "parameters": {
+                        "patch_size": 4,
+                        "embedding_dimension": 12,
+                        "depths": [
+                            1,
+                            1,
+                            1,
+                            1,
+                        ],
+                        "number_of_heads": [
+                            3,
+                            3,
+                            6,
+                            12,
+                        ],
+                        "window_size": 4,
+                        "mlp_ratio": 2.0,
+                        "dropout_probability": 0.0,
+                        "attention_dropout": 0.0,
+                        "drop_path_rate": 0.0,
+                    },
+                }
+            }
+        )
+
+        yaml_sequence_configuration_supported = (
+            tuple(
+                deeplab_model.aspp.atrous_rates
+            )
+            == (
+                3,
+                6,
+                9,
+            )
+            and tuple(
+                transunet_model.encoder_blocks
+            )
+            == (
+                1,
+                1,
+                1,
+                1,
+            )
+            and tuple(
+                swin_model.depths
+            )
+            == (
+                1,
+                1,
+                1,
+                1,
+            )
+            and tuple(
+                swin_model.number_of_heads
+            )
+            == (
+                3,
+                3,
+                6,
+                12,
+            )
+        )
+
+        del deeplab_model
+        del transunet_model
+        del swin_model
+
+    except (
+        TypeError,
+        ValueError,
+        RuntimeError,
+    ):
+        yaml_sequence_configuration_supported = False
+
+    invalid_sequence_length_rejected = False
+
+    try:
+        build_baseline_model(
+            "deeplabv3plus",
+            {
+                "atrous_rates": [
+                    6,
+                    12,
+                ],
+            },
+        )
+
+    except ValueError:
+        invalid_sequence_length_rejected = True
 
     expected_classes = {
         "unet": "UNet",
@@ -1204,6 +1412,12 @@ def run_baseline_model_factory_self_test() -> dict[str, Any]:
         ),
         "duplicate_alias_rejected": (
             duplicate_alias_rejected
+        ),
+        "yaml_sequence_configuration_supported": (
+            yaml_sequence_configuration_supported
+        ),
+        "invalid_sequence_length_rejected": (
+            invalid_sequence_length_rejected
         ),
         "factory_registry_complete": (
             baseline_factory_summary()[
